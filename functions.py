@@ -16,6 +16,7 @@ from scipy.io import wavfile
 import scipy.signal as signal
 from keras import backend as K
 from scipy.stats import beta
+from sklearn.preprocessing import StandardScaler
 
 def systemID_input_gen_func(duration,fs,steps, min_input, max_input):
     
@@ -43,37 +44,67 @@ def systemID_input_gen_func(duration,fs,steps, min_input, max_input):
     return np.transpose(activations)
 
 
-def music_preprocessing(logdir,clipping,duration=None):
+def systemID_input_gen_func2(duration,fs,steps, min_input, max_input):
     
-    file = logdir
-    fs, x = wavfile.read(file)
-    x2 = signal.decimate(x[:,1],10)
-    fs =fs/10
+    samples_factor = int(fs*steps)
+    number_of_values = int(duration/steps)
+    limb_activations = np.ones((number_of_values,4))*min_input
+    for i in range(4):
+        for c in range(0,number_of_values,4):   
+            limb_activations[c+i,i] = min_input+((max_input-min_input)*np.random.uniform(0.5,1,1)) 
+    activations = np.ones((4,samples_factor*(number_of_values+1)))*min_input
+
+    for i in range(4):
+        activations_temp = np.ones(samples_factor)*min_input
+        for j in range(number_of_values):
+            y = np.ones(samples_factor)*limb_activations[j,i]
+            activations_temp = np.concatenate((activations_temp,y))
+        activations[i,:] = activations_temp
+    return np.transpose(activations)
+
+
+def spect_preprocessing(logdir,clipping,spect_length,duration=None):
+
+    fs, music = wavfile.read(logdir)
+    x = music[:,0]
+
     if clipping == True:
-        N = int((np.shape(x2)[0]-duration*fs))
-        x2 = x2[0:-N]
-    x2 = x2-np.mean(x2)
-    preprocessed_music = x2/max(np.abs(x2))
-    
-    return fs, preprocessed_music
+        N = int((np.shape(x)[0]-duration*fs))
+        x= x[0:-N]
+    music = x
+    samples_number = int(fs*0.1)
+    epochs_number = int(np.shape(music)[0]/samples_number)
+    music = music[0:int(np.floor(np.shape(music)[0]/samples_number)*samples_number)]
 
-def spect_preprocessing(logdir,clipping,spect_shape,duration=None):
-    
-    if clipping:
-        fs, preprocessed_music = music_preprocessing(logdir,clipping,duration)  
-    else:
-        fs, preprocessed_music = music_preprocessing(logdir,clipping)  
-    f, t, Sxx = stft(preprocessed_music, fs, nfft = 2048)
+    grouped_matrix_music = music.reshape(-1,int(samples_number))
+    N = int(np.floor(np.shape(grouped_matrix_music)[1]/2))
+    fft_matrix = [[i+1 for i in range(N)]]
+    for k in range(epochs_number):
+        array = grouped_matrix_music[k,:]-np.mean(grouped_matrix_music[k,:])
+        fft_array = np.abs(fft(array)[0:N])
+        fft_array = np.reshape(fft_array,(1,N))
+        fft_matrix = np.append(fft_matrix,fft_array,0)
 
-    matrix = np.abs(Sxx)[25:525]
-    col_norms = np.linalg.norm(matrix, axis=0)
-    normalized_matrix = matrix / col_norms
 
-    resampled_array = np.zeros(spect_shape)
-    for k in range(np.shape(normalized_matrix)[0]):
-        resampled_array[k,:] = np.interp(np.linspace(0, 1, spect_shape[1]), np.linspace(0, 1, np.shape(normalized_matrix)[1]), normalized_matrix[k,:])
+        matrix = fft_matrix[1:,0:400]
+        #max_abs_values = [max([abs(element) for element in row]) for row in matrix]
+        max_abs_value = max([abs(element) for row in matrix for element in row])
 
-    return np.transpose(resampled_array)
+        normalized_matrix = np.zeros_like(matrix)
+
+        for i in range(np.shape(matrix)[0]):
+            for j in range(np.shape(matrix)[1]):
+                normalized_matrix[i,j] = matrix[i,j]/max_abs_value
+            #normalized_matrix = matrix
+  
+        spect_shape = (spect_length,np.shape(normalized_matrix)[1])
+        resampled_array = np.zeros(spect_shape)
+        for k in range(np.shape(normalized_matrix)[1]):
+            resampled_array[:,k] = np.interp(np.linspace(0, 1, spect_shape[0]), np.linspace(0, 1, np.shape(normalized_matrix)[0]), normalized_matrix[:,k])
+
+            #resampled_array = np.transpose(resampled_array)
+
+    return resampled_array
 
 
 def train_test_split(x,y,test_size):
@@ -89,15 +120,30 @@ def inverse_mapping_func(music_spect, limb_activations, test_size):# my version 
     x_train, y_train, x_test, y_test = train_test_split(music_spect,limb_activations,test_size)
     outputs = np.shape(limb_activations)[-1]
     layers = [
-        Dense(units=500, input_shape =(np.shape(x_train[1],)), activation = "sigmoid"),
-        Dense(units=100, input_shape=(500,),activation= "sigmoid"),
-        Dense(units=outputs, input_shape=(100,), activation = "softmax")
+        Dense(units=50, input_shape =(np.shape(x_train[1],)), activation = "sigmoid"),
+        Dense(units=4, input_shape=(50,),activation= "softmax"),
+
     ]
-    
     model = Sequential(layers)
     model.compile(optimizer=tf.keras.optimizers.Adam(.001),loss='binary_crossentropy', metrics = ['mse'])
     model.fit(x_train,y_train, epochs=10,validation_data = (x_test,y_test))
-    return model
+    return model 
+
+
+def inverse_mapping_func2(music_spect, limb_activations, test_size):# my version of this function
+    x_train, y_train, x_test, y_test = train_test_split(music_spect,limb_activations,test_size)
+    outputs = np.shape(limb_activations)[-1]
+    layers = [
+        Dense(units=50, input_shape =(np.shape(x_train[1],)), activation = "sigmoid"),
+        Dense(units=4, input_shape=(50,),activation= "softmax"),
+        tf.keras.layers.Lambda(lambda x: tf.argmax(x, axis=1)),
+
+    ]
+    model = Sequential(layers)
+    model.compile(optimizer=tf.keras.optimizers.Adam(.001),loss='binary_crossentropy', metrics = ['mse'])
+    model.fit(x_train,y_train, epochs=10,validation_data = (x_test,y_test))
+    return model 
+
 
 def network_refinement(x1,y1,x2,y2):
     input_updated = np.concatenate((x1,x2))
@@ -162,3 +208,6 @@ def tarining(inverse_map):
         _ = bridge.sendAndReceive(activation_set)
         _ = bridge.sendAndReceive([0.05]*4, 2)
     return activations
+
+	
+    
