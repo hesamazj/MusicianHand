@@ -17,9 +17,9 @@ midi_in = mido.open_input('LPK25 0')
 FORMAT = pyaudio.paInt16
 CHANNELS = 1  # mono recording
 RATE = 44100  # sample rate
-RECORD_SECONDS = 2  # recording duration in seconds
+RECORD_SECONDS = 5  # recording duration in seconds
 WAVE_OUTPUT_FILENAME = 'output2.wav'
-duration = 0.5
+total_duration = 0
 
 # Initialize PyAudio object
 audio = pyaudio.PyAudio()
@@ -34,11 +34,15 @@ while True:
     # Check for MIDI input
     for msg in midi_in.iter_pending():
         if msg.type == 'note_on':
-            print(msg.type)
+            start_time = time.time()
+
             note = msg.note
             velocity = msg.velocity
             frequency = note_to_freq(note)
             amplitude = velocity / 127.0
+        elif msg.type == 'note_off':
+            stop_time = time.time()
+            duration = stop_time-start_time
             t = 0
             while t < duration:
             # Generate a sine wave at the frequency of the note
@@ -50,10 +54,10 @@ while True:
             # Write audio data to stream
                 stream.write(data)
                 t += 1.0 / RATE
-            beat_count += 1
+            total_duration += duration
 
     # Check if we have recorded the desired number of beats
-    if beat_count >= np.floor(RECORD_SECONDS/duration):  # change this value to record a different number of beats
+    if total_duration>=RECORD_SECONDS:  # change this value to record a different number of beats
         break
 
 # Stop audio stream
