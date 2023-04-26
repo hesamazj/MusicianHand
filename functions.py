@@ -16,7 +16,8 @@ from scipy.io import wavfile
 import scipy.signal as signal
 from keras import backend as K
 from scipy.stats import beta
-from sklearn.preprocessing import StandardScaler
+from scipy.fft import fft
+#from sklearn.preprocessing import StandardScaler
 
 def systemID_input_gen_func(duration,fs,steps, min_input, max_input):
     
@@ -66,7 +67,8 @@ def systemID_input_gen_func2(duration,fs,steps, min_input, max_input):
 def spect_preprocessing(logdir,clipping,spect_length,duration=None):
 
     fs, music = wavfile.read(logdir)
-    x = music[:,0]
+    #x = music[:,0]
+    x = music
 
     if clipping == True:
         N = int((np.shape(x)[0]-duration*fs))
