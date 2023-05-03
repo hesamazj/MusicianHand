@@ -17,6 +17,11 @@ import scipy.signal as signal
 from keras import backend as K
 from scipy.stats import beta
 from scipy.fft import fft
+import pyaudio
+import mido
+import wave
+import struct
+import time
 #from sklearn.preprocessing import StandardScaler
 
 def systemID_input_gen_func(duration,fs,steps, min_input, max_input):
@@ -63,6 +68,24 @@ def systemID_input_gen_func2(duration,fs,steps, min_input, max_input):
         activations[i,:] = activations_temp
     return np.transpose(activations)
 
+def systemID_input_gen_func3(duration,fs,steps, min_input, max_input):
+    
+    n = int(fs*steps/5)
+    samples_factor = int(fs*steps)-n
+    number_of_values = int(duration/steps)
+    limb_activations = np.ones((number_of_values,4))*min_input
+    for i in range(4):
+        for c in range(0,number_of_values,4):   
+            limb_activations[c+i,i] = min_input+((max_input-min_input)*np.random.uniform(0.5,1,1)) 
+    activations = np.ones((4,(samples_factor+n)*(number_of_values)))*min_input
+
+    for i in range(4):
+        activations_temp = []
+        for j in range(number_of_values):
+            y = np.concatenate((np.ones(samples_factor)*limb_activations[j,i],np.ones(n)*min_input))
+            activations_temp = np.concatenate((activations_temp,y))
+        activations[i,:] = activations_temp
+    return np.transpose(activations)
 
 def spect_preprocessing(logdir,clipping,spect_length,duration=None):
 
@@ -210,6 +233,63 @@ def tarining(inverse_map):
         _ = bridge.sendAndReceive(activation_set)
         _ = bridge.sendAndReceive([0.05]*4, 2)
     return activations
+
+def note_to_freq(note, concert_A=440.0):
+    f = (2.0 ** ((note - 69) / 12.0)) * concert_A
+    return f
+
+def Record(record_duration,name):
+    midi_in = mido.open_input('LPK25 0')
+
+    FORMAT = pyaudio.paInt16
+    CHANNELS = 1  
+    RATE = 44100  
+    RECORD_SECONDS = record_duration 
+    WAVE_OUTPUT_FILENAME = name
+    total_duration = 0
+
+    audio = pyaudio.PyAudio()
+    stream = audio.open(format=FORMAT, channels=CHANNELS, rate=RATE, output=True)
+    print('Starting recording and MIDI input...')
+    audio_frames = []
+    while True:
+
+        for msg in midi_in.iter_pending():
+            if msg.type == 'note_on':
+                start_time = time.time()
+                note = msg.note
+                velocity = msg.velocity
+                frequency = note_to_freq(note)
+                amplitude = velocity / 127.0
+            elif msg.type == 'note_off':
+                stop_time = time.time()
+                duration = stop_time-start_time
+                t = 0
+                while t < duration:
+                    y = amplitude * np.sin(2 * np.pi * frequency * t)
+                    data = struct.pack('<h', int(y * 32767))
+                    audio_frames.append(data)
+                    stream.write(data)
+                    t += 1.0 / RATE
+                total_duration += duration
+
+        if total_duration>=RECORD_SECONDS:  
+            break
+
+# Stop audio stream
+    stream.stop_stream()
+    stream.close()
+    audio.terminate()
+
+# Open wave file for writing
+    wave_file = wave.open(WAVE_OUTPUT_FILENAME, 'wb')
+    wave_file.setnchannels(CHANNELS)
+    wave_file.setsampwidth(audio.get_sample_size(FORMAT))
+    wave_file.setframerate(RATE)
+    wave_file.writeframes(b''.join(audio_frames))
+    wave_file.close()
+
+    print(f'Recording saved as {WAVE_OUTPUT_FILENAME}.')
 
 	
     

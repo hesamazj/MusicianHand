@@ -10,14 +10,14 @@ def note_to_freq(note, concert_A=440.0):
     return f
 
 # Set up MIDI input
-#midi_in = mido.open_input('LPK25 0') #Windows
-midi_in = mido.open_input('LPK25') #Mac
+midi_in = mido.open_input('LPK25 0') #Windows
+#midi_in = mido.open_input('LPK25') #Mac
 
 # Set up audio recording
 FORMAT = pyaudio.paInt16
 CHANNELS = 1  # mono recording
 RATE = 44100  # sample rate
-RECORD_SECONDS = 60  # recording duration in seconds
+RECORD_SECONDS = 10  # recording duration in seconds
 WAVE_OUTPUT_FILENAME = 'output2.wav'
 total_duration = 0
 

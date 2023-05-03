@@ -7,7 +7,7 @@ import datetime
 
 # Babbling
 Experiment_ID = 'v0_02'
-babbling_duration = 64
+babbling_duration = 60
 fs = 100
 minimum_input = 0.05
 maximum_input = 1
@@ -31,16 +31,13 @@ np.savetxt('./Activations/Experiment_'+Experiment_ID+'_activations.txt',activati
 bridge.startConnection()
 
 _ = bridge.sendAndReceive([0.05]*4, 2)
-start = datetime.datetime.now()
+start = time.time()
 
 # Send Data
 for activation_set in activations:
     _ = bridge.sendAndReceive(activation_set)
     a = 2
-end = datetime.datetime.now()
-
-end = end.minute*60 + end.second
-start = start.minute*60 + start.second
+end = time.time()
 time_differnce = end - start
 
 print(time_differnce)
