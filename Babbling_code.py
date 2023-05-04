@@ -1,13 +1,12 @@
 import RTBridge as rtb
 import numpy as np
 from functions import *
-import datetime
 
 
 
 # Babbling
-Experiment_ID = 'v0_02'
-babbling_duration = 60
+Experiment_ID = 'v0_04'
+babbling_duration = 150
 fs = 100
 minimum_input = 0.05
 maximum_input = 1
@@ -21,7 +20,7 @@ bridge = rtb.BridgeSetup(pubPort, pxiWin10, rtb.setups.hand_4_4, milliTimeStep= 
 
 #Activations
 
-activations = systemID_input_gen_func2(babbling_duration,fs,steps, minimum_input,maximum_input)
+activations = systemID_input_gen_func_last(babbling_duration,fs,steps, minimum_input,maximum_input)
 np.savetxt('./Activations/Experiment_'+Experiment_ID+'_activations.txt',activations)
 #plt.plot(activations)
 #plt.show()  
