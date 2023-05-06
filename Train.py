@@ -14,7 +14,7 @@ bridge = rtb.BridgeSetup(pubPort, pxiWin10, rtb.setups.hand_4_4, milliTimeStep= 
 
 #Activations
 
-activations = np.loadtxt('./train_activations/activation_2.txt')
+activations = np.loadtxt('./Activations/prescribed_activation_2.txt')
 
 
 # Connection
@@ -26,9 +26,10 @@ start = time.time()
 for activation_set in activations:
     _ = bridge.sendAndReceive(activation_set)
     a = 2
+_ = bridge.sendAndReceive([0.05]*4, 2)
+
 end = time.time()
 time_differnce = end - start
-_ = bridge.sendAndReceive([0.05]*4, 2)
 
 print(time_differnce)
 

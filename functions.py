@@ -113,15 +113,15 @@ def systemID_input_gen_func3(duration,fs,steps, min_input, max_input):
         activations[i,:] = activations_temp
     return np.transpose(activations)
 
-def spect_preprocessing(logdir,spect_length):
+def spect_preprocessing(logdir,spect_length,i2):
 
     fs, music = wavfile.read(logdir)
     music = music[:,1]
     i1 = find_first_index(music)
-    i2 = find_last_index(music[i1:],i1,fs)
+    #i2 = find_last_index(music[i1:],i1,fs)
     music = music[i1:i2]
-    f,t, Sxx = stft(music,fs,'hann',nfft=1024)
-    matrix = np.abs(Sxx)
+    f,t,Sxx = stft(music,fs,'hann',nfft = 256,detrend = 'constant')    
+    matrix = np.abs(Sxx)[70:,:]
     max_abs_value = max([abs(element) for row in matrix for element in row])
     normalized_matrix = np.zeros_like(matrix)
 
@@ -181,13 +181,10 @@ def inverse_mapping_func2(music_spect, limb_activations, test_size):# my version
     x_train, y_train, x_test, y_test = train_test_split(music_spect,limb_activations,test_size)
     outputs = np.shape(limb_activations)[-1]
     layers = [
-        Dense(units=50, input_shape =(np.shape(x_train[1],)), activation = "sigmoid"),
-        Dense(units=4, input_shape=(50,),activation= "softmax"),
-        tf.keras.layers.Lambda(lambda x: tf.argmax(x, axis=1)),
-
+        Dense(units=4, input_shape =(np.shape(x_train[1],)), activation = "linear"),
     ]
     model = Sequential(layers)
-    model.compile(optimizer=tf.keras.optimizers.Adam(.001),loss='binary_crossentropy', metrics = ['mse'])
+    model.compile(optimizer='sgd',loss=tf.keras.losses.MeanSquaredError(), metrics = ['mse'])
     model.fit(x_train,y_train, epochs=10,validation_data = (x_test,y_test))
     return model 
 

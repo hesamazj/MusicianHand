@@ -5,7 +5,7 @@ from functions import *
 
 
 # Babbling
-Experiment_ID = 'v0_04'
+Experiment_ID = 'v0_05'
 babbling_duration = 150
 fs = 100
 minimum_input = 0.05
