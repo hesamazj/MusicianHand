@@ -1,17 +1,18 @@
 import RTBridge as rtb
 import numpy as np
 from functions import *
-
+import os
 
 
 # Babbling
-Experiment_ID = 'v0_05'
-babbling_duration = 150
+directory_path = './datalog/'
+Experiment_ID = 'v0_0000'
+babbling_duration = 90
 fs = 100
 minimum_input = 0.05
 maximum_input = 1
-steps = 1
-
+steps = 0.5
+os.mkdir(directory_path+'Experiment_'+Experiment_ID)
 # RTBridge Setup
 
 pxiWin10 = "169.254.172.223:5555"
@@ -21,7 +22,7 @@ bridge = rtb.BridgeSetup(pubPort, pxiWin10, rtb.setups.hand_4_4, milliTimeStep= 
 #Activations
 
 activations = systemID_input_gen_func_last(babbling_duration,fs,steps, minimum_input,maximum_input)
-np.savetxt('./Activations/Experiment_'+Experiment_ID+'_activations.txt',activations)
+np.savetxt(directory_path+'Experiment_'+Experiment_ID+'_activations.txt',activations)
 #plt.plot(activations)
 #plt.show()  
 
