@@ -95,7 +95,7 @@ def systemID_input_gen_func2(duration,fs,steps, min_input, max_input):
     return np.transpose(activations)
 
 def systemID_input_gen_func3(duration,fs,steps, min_input, max_input):
-    
+    #Use this
     n = int(fs*steps/5)
     samples_factor = int(fs*steps)-n
     number_of_values = int(duration/steps)
@@ -113,15 +113,15 @@ def systemID_input_gen_func3(duration,fs,steps, min_input, max_input):
         activations[i,:] = activations_temp
     return np.transpose(activations)
 
-def spect_preprocessing(logdir,spect_length):
+def spect_preprocessing(logdir,spect_length,i2):
 
     fs, music = wavfile.read(logdir)
     music = music[:,1]
     i1 = find_first_index(music)
-    i2 = find_last_index(music[i1:],i1,fs)
+    #i2 = find_last_index(music[i1:],i1,fs)
     music = music[i1:i2]
-    f,t, Sxx = stft(music,fs,'hann',nfft=1024)
-    matrix = np.abs(Sxx)
+    f,t,Sxx = stft(music,fs,'hann',nfft = 256,detrend = 'constant')    
+    matrix = np.abs(Sxx)[70:,:]
     max_abs_value = max([abs(element) for row in matrix for element in row])
     normalized_matrix = np.zeros_like(matrix)
 
@@ -137,6 +137,56 @@ def spect_preprocessing(logdir,spect_length):
         resampled_array[k,:] = np.interp(np.linspace(0, 1, spect_shape[1]), np.linspace(0, 1, np.shape(normalized_matrix)[1]), normalized_matrix[k,:])
 
     return resampled_array[0:500,:]
+
+def spect_preprocessing2(logdir,spect_length,i2):
+    #Use this
+    fs, music = wavfile.read(logdir)
+    music = music[:,1]
+    i1 = find_first_index(music)
+    music = music[i1:i2]
+    music = signal.decimate(music,10)
+    f,t,Sxx = stft(music,fs/10,'hann',nfft=256)   
+    matrix = np.abs(Sxx)[10:20,:]
+    #matrix[matrix<1500] = 0
+    
+    normalized_matrix = np.zeros_like(matrix)
+    max_abs_values = np.max(matrix,axis = 0)
+
+    for k in range(np.shape(matrix)[-1]):
+        if max_abs_values[k]!=0 and not np.isnan(max_abs_values[k]):
+            normalized_matrix[:,k] = matrix[:,k]/max_abs_values[k]
+            #normalized_matrix[:,k] = matrix[:,k]/1
+
+
+  
+    spect_shape = (np.shape(normalized_matrix)[0],spect_length)
+    resampled_array = np.zeros(spect_shape)
+    
+    for k in range(np.shape(normalized_matrix)[0]):
+            resampled_array[k,:] = np.interp(np.linspace(0, 1, spect_shape[1]), np.linspace(0, 1, np.shape(normalized_matrix)[1]), normalized_matrix[k,:])
+
+    return resampled_array
+
+def batch_processor(matrix, batch_size):
+    length = np.shape(matrix)[0]
+    tensor = np.zeros((length//batch_size,batch_size,np.shape(matrix)[1]))
+
+    for k in range(length//batch_size):
+        tensor[k,:,:] = matrix[k*batch_size:(k+1)*batch_size,:]
+    return tensor
+
+def outputs_processor2(predicts):
+
+    new_predicts = np.zeros_like(predicts)
+    for  k in range(np.shape(predicts)[0]):
+        idx = np.argmax(np.mean(predicts[k,:,:],axis=0))
+        amp = np.mean(predicts[k,:,idx])*1.8
+
+        new_predicts[k,:,:] = np.ones(np.shape(predicts)[1:])*0.05
+        new_predicts[k,:,idx] = amp*np.ones(np.shape(predicts)[1])
+    
+    activations = np.reshape(new_predicts,(-1,4))
+    return activations
 
 def find_last_index(arr,n,fs):
     avg = np.mean(np.abs(arr))
@@ -181,16 +231,31 @@ def inverse_mapping_func2(music_spect, limb_activations, test_size):# my version
     x_train, y_train, x_test, y_test = train_test_split(music_spect,limb_activations,test_size)
     outputs = np.shape(limb_activations)[-1]
     layers = [
-        Dense(units=50, input_shape =(np.shape(x_train[1],)), activation = "sigmoid"),
-        Dense(units=4, input_shape=(50,),activation= "softmax"),
-        tf.keras.layers.Lambda(lambda x: tf.argmax(x, axis=1)),
-
+        Dense(units=4, input_shape =(np.shape(x_train[1],)), activation = "linear"),
     ]
     model = Sequential(layers)
-    model.compile(optimizer=tf.keras.optimizers.Adam(.001),loss='binary_crossentropy', metrics = ['mse'])
+    model.compile(optimizer='sgd',loss=tf.keras.losses.MeanSquaredError(), metrics = ['mse'])
     model.fit(x_train,y_train, epochs=10,validation_data = (x_test,y_test))
     return model 
 
+
+def softmax_with_temperature(x, temperature=1.0):
+    return K.softmax(x / temperature)
+
+def inverse_mapping_func3(music_spect, limb_activations, test_size):# my version of this function
+    x_train, y_train, x_test, y_test = train_test_split(music_spect,limb_activations,test_size)
+    outputs = np.shape(limb_activations)[-1]
+    layers = [
+        Dense(units=20, input_shape =(np.shape(x_train[1],)), activation = "linear"),
+        #Dense(units = 4, activation=lambda x: softmax_with_temperature(x, temperature=0.05)),
+        Dense(units=4,activation = 'linear'),
+    ]
+    model = Sequential(layers)
+   # model.compile(optimizer='adam',loss=tf.keras.losses.CategoricalCrossentropy(), metrics = ['mse'])
+    model.compile(optimizer='adam',loss='mse', metrics = ['mse'])
+
+    model.fit(x_train,y_train, epochs=10,validation_data = (x_test,y_test))
+    return model 
 
 def network_refinement(x1,y1,x2,y2):
     input_updated = np.concatenate((x1,x2))
