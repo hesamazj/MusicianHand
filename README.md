@@ -89,7 +89,7 @@ Installation
 
 1.  Clone the repository:
     ```
-    git clone [Your_Repository_URL_Here]
+    git clone https://github.com/hesamazj/MusicianHand.git
     cd Musician-Hand
     ```
 2.  Install dependencies:
